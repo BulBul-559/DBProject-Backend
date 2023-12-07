@@ -10,6 +10,11 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/4.2/ref/settings/
 """
 
+import json
+
+with open('env.json') as env:
+    ENV = json.load(env)
+
 from pathlib import Path
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -42,12 +47,18 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
+    'corsheaders.middleware.CorsMiddleware',
+    # "django.middleware.csrf.CsrfViewMiddleware",
     "django.middleware.common.CommonMiddleware",
-    "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
+
+
+CORS_ALLOW_CREDENTIALS = True
+CORS_ALLOW_ALL_ORIGINS = True
+CORS_ALLOW_HEADERS = ('*')
 
 ROOT_URLCONF = "DBBackEnd.urls"
 
@@ -73,10 +84,16 @@ WSGI_APPLICATION = "DBBackEnd.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
+WSGI_APPLICATION = "mysite.wsgi.application"
+
 DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",
+    'default': {
+        'ENGINE': 'django.db.backends.mysql',
+        'NAME': ENV['DATABASES']['NAME'],
+        'USER': ENV['DATABASES']['USER'],
+        'PASSWORD': ENV['DATABASES']['PASSWORD'],
+        'HOST': ENV['DATABASES']['HOST'],
+        'PORT': ENV['DATABASES']['PORT'],
     }
 }
 
@@ -103,13 +120,15 @@ AUTH_PASSWORD_VALIDATORS = [
 # Internationalization
 # https://docs.djangoproject.com/en/4.2/topics/i18n/
 
-LANGUAGE_CODE = "en-us"
+LANGUAGE_CODE = 'zh-hans'
 
-TIME_ZONE = "UTC"
+TIME_ZONE = 'Asia/Shanghai'
 
 USE_I18N = True
 
-USE_TZ = True
+USE_L10N = True
+
+USE_TZ = False
 
 
 # Static files (CSS, JavaScript, Images)
@@ -121,3 +140,12 @@ STATIC_URL = "static/"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#default-auto-field
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+
+# 配置邮箱
+EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+EMAIL_HOST = ENV['EMAIL']['HOST']  # 腾讯QQ邮箱SMTP服务器地址
+EMAIL_PORT = ENV['EMAIL']['PORT']  # SMTP服务的端口号
+EMAIL_HOST_USER = ENV['EMAIL']['USER']  # 发送邮件的0Q邮箱
+EMAIL_HOST_PASSWORD = ENV['EMAIL']['PASSWORD']  # QQ邮箱授权码
+EMAIL_USE_TLS = ENV['EMAIL']['USE_TLS']  # 与SMTP服务器通信时,是否启动TLS链接(安全链接)默认FaLse
