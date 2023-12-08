@@ -30,18 +30,18 @@ SECRET_KEY = "django-insecure-w^89lj_$xuni&f))ko@s-bz7b^cp-j4&(c=@jhgr)8rwgiq$j2
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
-
 
 # Application definition
 
 INSTALLED_APPS = [
+    "login.apps.LoginConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
     "django.contrib.sessions",
     "django.contrib.messages",
     "django.contrib.staticfiles",
+    'corsheaders',  # 注册app corsheaders
 ]
 
 MIDDLEWARE = [
@@ -57,10 +57,18 @@ MIDDLEWARE = [
 
 
 CORS_ALLOW_CREDENTIALS = True
-CORS_ALLOW_ALL_ORIGINS = True
-CORS_ALLOW_HEADERS = ('*')
+# CORS_ALLOW_ALL_ORIGINS = True
+# CORS_ALLOW_HEADERS = ('*')
+CORS_ALLOWED_ORIGINS=['http://127.0.0.1','http://127.0.0.1:5173',
+                        'https://api.bulbul559.cn', 'https://bulbul559.cn']
+
+
+# ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = ['127.0.0.1','127.0.0.1:5173',
+                        'https://api.bulbul559.cn/', 'https://bulbul559.cn/']
 
 ROOT_URLCONF = "DBBackEnd.urls"
+
 
 TEMPLATES = [
     {
@@ -84,7 +92,6 @@ WSGI_APPLICATION = "DBBackEnd.wsgi.application"
 # Database
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
-WSGI_APPLICATION = "mysite.wsgi.application"
 
 DATABASES = {
     'default': {
