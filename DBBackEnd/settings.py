@@ -34,7 +34,7 @@ DEBUG = True
 # Application definition
 
 INSTALLED_APPS = [
-    "login.apps.LoginConfig",
+    "Youthol.apps.YoutholConfig",
     "django.contrib.admin",
     "django.contrib.auth",
     "django.contrib.contenttypes",
@@ -42,6 +42,8 @@ INSTALLED_APPS = [
     "django.contrib.messages",
     "django.contrib.staticfiles",
     'corsheaders',  # 注册app corsheaders
+    'rest_framework',
+    'rest_framework_simplejwt',
 ]
 
 MIDDLEWARE = [
@@ -56,15 +58,26 @@ MIDDLEWARE = [
 ]
 
 
+REST_FRAMEWORK = {
+    'DEFAULT_AUTHENTICATION_CLASSES': [
+        'rest_framework_simplejwt.authentication.JWTAuthentication',
+    ],
+}
+
+AUTHENTICATION_BACKENDS = [
+    'django.contrib.auth.backends.ModelBackend',
+    # 其他身份验证后端（如果有）
+]
+
 CORS_ALLOW_CREDENTIALS = True
 # CORS_ALLOW_ALL_ORIGINS = True
 # CORS_ALLOW_HEADERS = ('*')
-CORS_ALLOWED_ORIGINS=['http://127.0.0.1','http://127.0.0.1:5173',
+CORS_ALLOWED_ORIGINS=['http://127.0.0.1','http://127.0.0.1:5173','http://localhost:5173',
                         'https://api.bulbul559.cn', 'https://bulbul559.cn']
 
 
 # ALLOWED_HOSTS = ['*']
-ALLOWED_HOSTS = ['127.0.0.1','127.0.0.1:5173',
+ALLOWED_HOSTS = ['127.0.0.1','127.0.0.1:5173','localhost:5173/',
                         'https://api.bulbul559.cn/', 'https://bulbul559.cn/']
 
 ROOT_URLCONF = "DBBackEnd.urls"
