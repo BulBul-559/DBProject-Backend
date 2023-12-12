@@ -6,4 +6,10 @@ urlpatterns = [
     path("SignIn/", views.SignIn),
     path("SignUp/", views.SignUp),
     path("getUserInfo/", views.GetUserInfo),
+    path("getYoutholerInfo/", views.getYoutholerInfo),
+    path("addDuty/", views.addDuty),
+    path("StartDuty/", views.StartDuty),
+    path("FinishDuty/", views.FinishDuty),
+    path("getTodayDuty/", views.getTodayDuty),
+    path("CheckDuty/", views.CheckDuty),
 ]

@@ -8,13 +8,13 @@ class Sduter(models.Model):
     name = models.CharField(max_length=20,null=True)
     college = models.CharField(max_length=20,null=True)
     class_number = models.CharField(max_length=20,null=True)
-    identity = models.IntegerField()
+    identity = models.CharField(max_length=20,null=True)
 
 class Youtholer(models.Model):
     sdut_id = models.CharField(max_length=20)
     name = models.CharField(max_length=20,null=True)
     department = models.CharField(max_length=20,null=True)
-    identity = models.IntegerField()
+    identity = models.CharField(max_length=20,null=True)
 
 class DutyList(models.Model):
     sdut_id = models.CharField(max_length=20)
@@ -30,5 +30,5 @@ class DutyHistory(models.Model):
     sdut_id = models.CharField(max_length=20)
     start_time = models.DateTimeField()
     end_time = models.DateTimeField()
-    totlal_time = models.IntegerField()
+    total_time = models.IntegerField()
     duty_state = models.CharField(max_length=20)
