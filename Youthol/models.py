@@ -9,6 +9,8 @@ class Sduter(models.Model):
     college = models.CharField(max_length=20,null=True)
     class_number = models.CharField(max_length=20,null=True)
     identity = models.CharField(max_length=20,null=True)
+    phone = models.CharField(max_length=20,null=True)
+ 
 
 class Youtholer(models.Model):
     sdut_id = models.CharField(max_length=20)
@@ -32,3 +34,8 @@ class DutyHistory(models.Model):
     end_time = models.DateTimeField()
     total_time = models.IntegerField()
     duty_state = models.CharField(max_length=20)
+
+class DutyLeave(models.Model):
+    sdut_id = models.CharField(max_length=20)
+    day = models.IntegerField()
+    frame = models.IntegerField()

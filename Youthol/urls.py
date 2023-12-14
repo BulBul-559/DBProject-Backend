@@ -12,4 +12,10 @@ urlpatterns = [
     path("FinishDuty/", views.FinishDuty),
     path("getTodayDuty/", views.getTodayDuty),
     path("CheckDuty/", views.CheckDuty),
+    path("GetAllDuty/", views.GetAllDuty),
+    path("GetTotalDutyInRange/", views.GetTotalDutyInRange),
+    path("GetAllYoutholer/", views.GetAllYoutholer),
+    path("GetSingleTotalDuty/", views.GetSingleTotalDuty),
+    path("modifySingleYoutholInfo/", views.modifySingleYoutholInfo),
+    path("deletYoutholer/", views.deletYoutholer),
 ]
