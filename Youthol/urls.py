@@ -18,4 +18,8 @@ urlpatterns = [
     path("GetSingleTotalDuty/", views.GetSingleTotalDuty),
     path("modifySingleYoutholInfo/", views.modifySingleYoutholInfo),
     path("deletYoutholer/", views.deletYoutholer),
+    path("addOneYoutholer/", views.addOneYoutholer),
+    path("getSingleDutyTime/", views.getSingleDutyTime),
+    path("applyDutyLeave/", views.applyDutyLeave),
+    path("getSingleLeaveRecord/", views.getSingleLeaveRecord),
 ]

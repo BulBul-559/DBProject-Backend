@@ -78,12 +78,12 @@ CORS_ALLOW_CREDENTIALS = True
 # CORS_ALLOW_ALL_ORIGINS = True
 # CORS_ALLOW_HEADERS = ('*')
 CORS_ALLOWED_ORIGINS=['http://127.0.0.1','http://127.0.0.1:5173','http://localhost:5173',
-                        'https://api.bulbul559.cn', 'https://bulbul559.cn']
+                        'https://api.bulbul559.cn', 'https://bulbul559.cn','https://api.youthol.online']
 
 
 # ALLOWED_HOSTS = ['*']
-ALLOWED_HOSTS = ['127.0.0.1','127.0.0.1:5173','localhost:5173/',
-                        'https://api.bulbul559.cn/', 'https://bulbul559.cn/']
+ALLOWED_HOSTS = ['127.0.0.1','127.0.0.1:5173','localhost:5173/','api.youthol.online',
+                        'https://api.bulbul559.cn/', 'https://bulbul559.cn/','https://api.youthol.online/']
 
 ROOT_URLCONF = "DBBackEnd.urls"
 
@@ -111,6 +111,17 @@ WSGI_APPLICATION = "DBBackEnd.wsgi.application"
 # https://docs.djangoproject.com/en/4.2/ref/settings/#databases
 
 
+# DATABASES = {
+#     'default': {
+#         'ENGINE': 'django.db.backends.mysql',
+#         'NAME': ENV['DATABASES']['NAME'],
+#         'USER': ENV['DATABASES']['USER'],
+#         'PASSWORD': ENV['DATABASES']['PASSWORD'],
+#         'HOST': ENV['DATABASES']['HOST'],
+#         'PORT': ENV['DATABASES']['PORT'],
+#     }
+# }
+
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.mysql',
@@ -119,6 +130,14 @@ DATABASES = {
         'PASSWORD': ENV['DATABASES']['PASSWORD'],
         'HOST': ENV['DATABASES']['HOST'],
         'PORT': ENV['DATABASES']['PORT'],
+        'OPTIONS': {
+            'init_command': "SET sql_mode='STRICT_TRANS_TABLES'",
+            'charset': 'utf8mb4',
+        },
+        'MYSQL': {
+            'driver': 'pymysql',
+            'charset': 'utf8mb4',
+        },
     }
 }
 

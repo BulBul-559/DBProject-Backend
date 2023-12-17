@@ -12,7 +12,7 @@ from Youthol.models import Youtholer
 from Youthol.models import DutyList
 from Youthol.models import DutyNow
 from Youthol.models import DutyHistory
-
+from Youthol.models import DutyLeave
 
 # generate token and verify the token
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
@@ -63,9 +63,9 @@ def SignUp(request):
         sdut_id = row['sdut_id']
         name = row['name']
         college = '山东理工大学'
-        class_number = row['grade']
+        grade = row['grade']
         identity = '学生'
-        sduter = Sduter.objects.create(sdut_id=sdut_id, name=name, college=college, class_number=class_number,identity = identity)
+        sduter = Sduter.objects.create(sdut_id=sdut_id, name=name, college=college, grade=grade,identity = identity)
         sduter.save()
     # 注册 Youther
     for idx, row in df[columns_to_extract].iterrows():
@@ -195,7 +195,9 @@ def StartDuty(request):
     duty_state = '正常值班'
 
     # 这里应该请求数据库，然后判断是不是在值班时间内、是否迟到登的
-
+    if(DutyNow.objects.filter(sdut_id=sdut_id).exists() == True):
+       return HttpResponse('签到失败')
+    
     duty = DutyNow.objects.create(sdut_id=sdut_id, start_time=start_time, duty_state=duty_state)
   
     responseData = {
@@ -332,11 +334,21 @@ def GetAllYoutholer(request):
     responseData = []
     youtholers = Youtholer.objects.all()
     for i in youtholers:
+        duty = DutyList.objects.filter(sdut_id=i.sdut_id)
+
+        duty_list = []
+
+        for j in duty:
+            day = j.day
+            frame = j.frame
+            duty_list.append({'day': day, 'frame': frame})
+
         temp = {
             'sdut_id': i.sdut_id,
             'name': i.name,
             'department' :i.department,
-            'identity':i.identity
+            'identity':i.identity,
+            'duty':duty_list
         }
         responseData.append(temp)
     
@@ -349,7 +361,7 @@ def GetAllYoutholer(request):
 def GetAllDuty(request):
     """
         获取时间内全部值班记录
-        一个人多条记录将会分开返回
+        一个人多条记录不会合并
     """
 
     responseData = []
@@ -383,6 +395,7 @@ def GetTotalDutyInRange(request):
     json_param = json.loads(request.body.decode())
     start_time = json_param['start_time']
     end_time = json_param['end_time']
+    # contain_absence = json_param['contain_absence']
     responseData = []
 
     # 根据时间找需要值班的
@@ -394,9 +407,6 @@ def GetTotalDutyInRange(request):
 
     differ_day = (end_date - start_date).days
     base_absence = int((differ_day)/7) # 跨域了几周
-    print(base_absence)
-    print(differ_day)
-    
     # 如果时间大于一周，则会直接获取全部，然后再单独处理剩下多余的
     if differ_day >= 7:
         print("more than 7 days")
@@ -409,7 +419,10 @@ def GetTotalDutyInRange(request):
                 # 如果已存在相同的 sdut_id，则累加 缺勤（在下面判断是不是真的缺勤）
                 existing_entry['absence'] += 1
             else:
-                in_youthol = Youtholer.objects.filter(sdut_id=i.sdut_id)[0]
+                in_youthol = Youtholer.objects.filter(sdut_id=i.sdut_id)
+                if in_youthol.exists():
+                    in_youthol = in_youthol[0]
+                else: continue
                 temp = {
                     'sdut_id': i.sdut_id,
                     'name': in_youthol.name,
@@ -429,7 +442,6 @@ def GetTotalDutyInRange(request):
 
     # 两天相同，判断是不是同一天，否则就是超过了一周且恰好闭环
     if w1==w2:
-        print("same day")
         _day.append(w1+1)
     else:
         print("notsame day")
@@ -439,11 +451,9 @@ def GetTotalDutyInRange(request):
                 w1 = w1+1
                 w1 = w1%7
             else: break
-    print(_day)
 
     if(len(_day)!=0):
         dutys = DutyList.objects.filter(day__in=_day)
-        print(len(dutys))
         for i in dutys:
             current_sdut_id = i.sdut_id
             existing_entry = next((entry for entry in responseData if entry['sdut_id'] == current_sdut_id), None)
@@ -452,7 +462,10 @@ def GetTotalDutyInRange(request):
                 # 如果已存在相同的 sdut_id，则累加 缺勤（在下面判断是不是真的缺勤）
                 existing_entry['absence'] += 1
             else:
-                in_youthol = Youtholer.objects.filter(sdut_id=i.sdut_id)[0]
+                in_youthol = Youtholer.objects.filter(sdut_id=i.sdut_id)
+                if in_youthol.exists():
+                    in_youthol = in_youthol[0]
+                else: continue
                 temp = {
                     'sdut_id': i.sdut_id,
                     'name': in_youthol.name,
@@ -468,17 +481,18 @@ def GetTotalDutyInRange(request):
         # 上面统计的 absence 是实际上应该值班的次数，经过下面过滤以后才是真正缺勤的人
         # leave 需要单独再处理
 
-    dutys = DutyHistory.objects.all()
+    # 使用 __range 查询获取在给定时间范围内的 DutyHistory 记录
+    dutys = DutyHistory.objects.filter(start_time__range=(start_time, end_time))
+    # dutys = DutyHistory.objects.all()
     for i in dutys:
         current_sdut_id = i.sdut_id
         existing_entry = next((entry for entry in responseData if entry['sdut_id'] == current_sdut_id), None)
 
         if existing_entry:
             # 这个人之前应该值班，判断一下这个值班的时间是不是在应该值班的区间
-
             existing_entry['total_time'] += i.total_time
         else:
-            # 说明这个人之前没有值班任务
+            # 说明这个人在时间范围内没有值班任务
             in_youthol = Youtholer.objects.filter(sdut_id=i.sdut_id)[0]
             temp = {
                 'sdut_id': i.sdut_id,
@@ -531,12 +545,20 @@ def modifySingleYoutholInfo(request):
     json_param = json.loads(request.body.decode())
     sdut_id = json_param['sdut_id']
 
-    youthol = Youtholer.objects.filter(sdut_id=sdut_id)[0]
 
+    duty = json_param['duty']
+    
+    youthol = Youtholer.objects.filter(sdut_id=sdut_id)[0]
     youthol.department = json_param['department']
     youthol.name = json_param['name']
     youthol.identity = json_param['identity']
     youthol.save()
+
+    duty_list = DutyList.objects.filter(sdut_id = sdut_id)
+    duty_list.delete()
+    for i in range(0,2):
+        if(duty[i]['day']!= 0 and duty[i]['frame']):
+            DutyList.objects.create(sdut_id=sdut_id,day=duty[i]['day'],frame=duty[i]['frame'],)
 
     return HttpResponse('修改成功')
 
@@ -547,7 +569,128 @@ def deletYoutholer(request):
     json_param = json.loads(request.body.decode())
     sdut_id = json_param['sdut_id']
 
-    youthol = Youtholer.objects.filter(sdut_id=sdut_id)[0]
-    
-    youthol.delete()
+    youthol = Youtholer.objects.filter(sdut_id=sdut_id)
+    if(len(youthol)!=1):
+        # 有多个部门，只删除当前这个
+        youthol = Youtholer.objects.filter(sdut_id=sdut_id,department=json_param['department'])
+        youthol.delete()
+    else:
+        # 只有一个部门
+        youthol.delete()
+        duty = DutyHistory.objects.filter(sdut_id=sdut_id)
+        duty.delete()
+
+        duty = DutyNow.objects.filter(sdut_id=sdut_id)
+        duty.delete()
+
+        duty = DutyList.objects.filter(sdut_id=sdut_id)
+        duty.delete()
+
+        duty = DutyLeave.objects.filter(sdut_id=sdut_id);
+        duty.delete()
+
     return HttpResponse('删除成功')
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def addOneYoutholer(request):
+    """
+    1. 判断 user 中有没有
+    2. 判断 sduter 中有没有
+    3. 判断 youtholer 中有没有
+    """
+    json_param = json.loads(request.body.decode())
+    sdut_id = json_param['sdut_id']
+
+    if User.objects.filter(username=sdut_id).exists() == False:
+        user = User.objects.create_user(sdut_id, f"{sdut_id}@stumail.sdut.edu.cn", 'youthol')
+        user.save()
+
+    if Sduter.objects.filter(sdut_id=sdut_id).exists() == False:
+        name = json_param['name']
+        college =json_param['college']
+        grade = json_param['grade']
+        identity = '学生'
+        sduter = Sduter.objects.create(sdut_id=sdut_id, name=name, college=college, grade=grade,identity = identity)
+        sduter.save()
+
+    if Youtholer.objects.filter(sdut_id=sdut_id).exists() == False:
+        sdut_id = json_param['sdut_id']
+        name = json_param['name']
+        department = json_param['department']
+        identity = '试用'
+        youtholer = Youtholer.objects.create(sdut_id=sdut_id, name=name, department=department, identity=identity)
+        youtholer.save()
+
+    duty = json_param['duty']
+    for i in range(0,2):
+        if(duty[i]['day']!= 0 and duty[i]['frame']):
+            DutyList.objects.create(sdut_id=sdut_id,day=duty[i]['day'],frame=duty[i]['frame'],)
+
+    return HttpResponse('添加成功')
+
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def getSingleDutyTime(request):
+    sdut_id = tokenToId(request)
+    duty = DutyList.objects.filter(sdut_id=sdut_id)
+
+    data = []
+
+    for i in duty:
+        temp = {
+            'day': i.day,
+            'frame':i.frame
+        }
+        data.append(temp)
+
+    while(len(data)<2):
+        data.append({'day':0,'frame':0})
+
+    return HttpResponse(json.dumps(data))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def applyDutyLeave(request):
+    json_param = json.loads(request.body.decode())
+    sdut_id = tokenToId(request)
+
+    leave = json_param['leave']
+    for str_date in leave:
+        date = str_date.split(',')[0]
+        day =str_date.split(',')[1]
+        frame = str_date.split(',')[2]
+        date_object = datetime.strptime(date, "%Y-%m-%d")
+        if DutyLeave.objects.filter(sdut_id=sdut_id, leave_date=date_object,day=day,frame=frame).exists():
+            return HttpResponse("重复请假")
+        
+    for str_date in leave:
+        date = str_date.split(',')[0]
+        day =str_date.split(',')[1]
+        frame = str_date.split(',')[2]
+        date_object = datetime.strptime(date, "%Y-%m-%d")
+        DutyLeave.objects.create(sdut_id=sdut_id, apply_time=timezone.now(), leave_date=date_object,day=day,frame=frame)
+
+    return HttpResponse("请假成功")
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def getSingleLeaveRecord(request):
+    sdut_id = tokenToId(request)
+
+    leave = DutyLeave.objects.filter(sdut_id=sdut_id)
+
+    data = []
+    for i in leave:
+        temp = {
+            'apply_time':formatTime(i.apply_time),
+            'leave_date':formatTime(i.leave_date),
+            'day':i.day,
+            'frame':i.frame,
+        }
+        data.append(temp)
+
+    return HttpResponse(json.dumps(data))
