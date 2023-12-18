@@ -10,6 +10,8 @@ class Sduter(models.Model):
     grade = models.CharField(max_length=20,null=True)
     identity = models.CharField(max_length=20,null=True)
     phone = models.CharField(max_length=20,null=True)
+    qq_number = models.CharField(max_length=30,null=True)
+    birthday = models.DateField(null=True)
     first_login = models.BooleanField(default=True)
  
 class Youtholer(models.Model):
@@ -30,10 +32,12 @@ class DutyNow(models.Model):
 
 class DutyHistory(models.Model):
     sdut_id = models.CharField(max_length=20, db_index=True)
-    start_time = models.DateTimeField(db_index=True)
+    start_time = models.DateTimeField()
     end_time = models.DateTimeField()
-    total_time = models.IntegerField()
-    duty_state = models.CharField(max_length=20)
+    total_time = models.IntegerField(default=0)
+    extra_time = models.IntegerField(default=0)
+    duty_state = models.CharField(max_length=20,db_index=True)
+    duty_times = models.IntegerField(default=0,db_index=True)
 
 class DutyLeave(models.Model):
     sdut_id = models.CharField(max_length=20, db_index=True)

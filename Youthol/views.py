@@ -52,6 +52,11 @@ def judgeLocation(location):
     else:
         return False
 
+def dutyFrameToTime(frame):
+    _time = {1:"08:00", 2:"10:00", 3:"14:00", 4:"16:00", 5:"19:00" }
+    return _time[frame]
+
+       
 # 以下为测试接口
     
 def SignUp(request):
@@ -297,29 +302,129 @@ def FinishDuty(request):
         return HttpResponse(json.dumps({'message':'不在签退范围位置内'}))
 
 
-    message = '签退成功'
-
     if DutyNow.objects.filter(sdut_id = sdut_id).exists():
         duty_now = DutyNow.objects.get(sdut_id = sdut_id)
         start_time = duty_now.start_time
         end_time = timezone.now()
+
+
+
+        # 开始判断判断状态
         total_time = (end_time - start_time).total_seconds()
 
-        if(total_time<1800):
-            duty_state = '值班时间不足30分钟'
-
-            duty_recode = DutyHistory.objects.create(sdut_id=sdut_id, start_time=start_time, 
-                                                     end_time=end_time, total_time = total_time,
-                                                     duty_state=duty_state)
+        # 状态 1 时间不足
+        if(total_time < 1800):
+            duty_state = '值班时间不足'
+            # total 和 extra 等于 0 
+            DutyHistory.objects.create(sdut_id=sdut_id, start_time=start_time, 
+                                       end_time=end_time, duty_state=duty_state)
             
-            message = '值班时间不足30分钟，不计入总值班时长';
-        else:
-            duty_state = '正常值班'
-            duty_recode = DutyHistory.objects.create(sdut_id=sdut_id, start_time=start_time, 
-                                            end_time=end_time, total_time = total_time,
-                                            duty_state=duty_state)
+            duty_now.delete()
+            return HttpResponse(json.dumps({'message':'值班时间不足30分钟，不计入总值班时长'}));   
+
+
+        # 判断是否重合，根据 sdut_id 和 day 获取到 duty_list, 然后将 frame 转换为 time 进行判断
+        # 循环内处理重合，循环外处理不重合
+        # 有可能一个人值班在同一天，连续值班了，所以要对结果进行累计，要对 duty_state 和 extra_time 累计
+
+        # 初始化 
+        duty_state = '正常值班'
+        extra_time = total_time
+        duty_times = 0
+        # 获取排班
+        duty_list = DutyList.objects.filter(sdut_id = sdut_id, day = (start_time.weekday() + 1))
+        for _duty in duty_list:
+            _frame = _duty.frame
+            _time = dutyFrameToTime(_frame)
+
+            # 获取到当前值班时间的 开始时间 和 结束时间
+            _time_obj = datetime.strptime(_time, '%H:%M').time()            
+            duty_start = start_time.replace(hour=_time_obj.hour, minute=_time_obj.minute, second=0, microsecond=0)
+            duty_end = start_time.replace(hour=_time_obj.hour + 2, minute=_time_obj.minute, second=0, microsecond=0)
+
+            if start_time > duty_end or end_time < duty_start:
+                # 这次排班没有重合， 不表示下次没有， 所以 continue
+                continue
+            
+            # print(start_time)
+            # print(end_time)
+            # print(duty_start)
+            # print(duty_end)
+            # 上面的 if 没有过滤掉，说明这个排班有重合
+            if start_time < duty_start:
+                # 开始时间早于 duty_start
+                if end_time < duty_end:
+                    # 结束时间早于 duty_end
+                    # 判断是不是满足 90 min 
+                    # 排班时间内一共 值班 end_time - duty_start 
+                    in_duty_time = (end_time - duty_start).total_seconds()
+                    # print(in_duty_time)
+                    if in_duty_time >= 90*60:
+                        # 满足 -> 正常值班 
+                        # 因为要累计状态，因此这里 正常值班 才能替换
+                        if duty_state == '正常值班':
+                            duty_state = '正常值班'
+                        extra_time -= 90*60
+                        duty_times += 1
+                    else:
+                        # 不满足 -> 早退 
+                        if duty_state == '正常值班':
+                            duty_state = '早退'
+                        extra_time -= in_duty_time
+
+                else:
+                    # 结束时间晚于等于 duty_end
+                    # 只能是正常值班 
+                    if duty_state == '正常值班':
+                        duty_state = '正常值班' 
+                    extra_time -= 90*60
+                    duty_times += 1
+            else:
+                # 开始时间晚于等于 duty_start
+                if end_time < duty_end:
+                    # 结束时间早于 duty_end
+                    # 不用额外计算了，total_time 就是
+                    if total_time >= 90*60:
+                        # 满足
+                        if duty_state == '正常值班':
+                            duty_state = '正常值班' 
+                        extra_time -= 90*60
+                        duty_times += 1
+                    else:
+                        # 不满足
+                        if duty_state == '正常值班':
+                            duty_state = '早退' 
+                        extra_time = 0
+                else:
+                    # 结束时间晚于等于 duty_end
+                    in_duty_time = (duty_end - start_time).total_seconds()
+                    # print(in_duty_time)
+                    if in_duty_time >= 90*60:
+                        # 满足
+                        if duty_state == '正常值班':
+                            duty_state = '正常值班' 
+                        extra_time -= 90*60
+                        duty_times += 1                 
+                    else:
+                        # 不满足
+                        if duty_state == '正常值班':
+                            duty_state = '迟到'
+                        extra_time -= in_duty_time
+
+
+        # 剩下的情况都是不重合 且大于 30 min    
+        # 不重合就是初始化的情况，重合则在 for 中已经处理，在这里统一存入数据库
+                        
+        duty_record = DutyHistory.objects.create(sdut_id = sdut_id, start_time = start_time, end_time = end_time,
+                                   total_time = total_time, extra_time = extra_time,
+                                   duty_state = duty_state ,duty_times = duty_times)
         duty_now.delete()
-        return HttpResponse(json.dumps({'message':message}));   
+        # dic = duty_record.__dict__
+        # dic.pop('_state', None)
+        # print(dic)
+
+        return HttpResponse(json.dumps({'message':'签退成功'}));   
+
     else:
         return HttpResponse(json.dumps({'message':'签退失败'}));
 
@@ -476,11 +581,25 @@ def GetTotalDutyInRange(request):
     start_date = datetime.strptime(start_time, "%Y-%m-%d")
     end_date = datetime.strptime(end_time, "%Y-%m-%d")
 
+    """
+    如果时间大于一周，则先计算完整星期内的值班次数，然后再计算不足一星期的部分
+    1. 计算包含了几个完整的星期
+    2. 获取全部的值班信息
+    3. 根据值班信息 以及 跨越了几个完整的星期 计算出在 时间区间 内需要 值班多少次
+    4. 然后遍历剩下不足一周的时间
+    5. 查询每天都有谁要值班，并累计次数
+    这里将需要值班的次数累计到 absence 中，随后根据请假和值班信息，剔除掉 absence 获得缺勤次数
+    剔除分为两种：
+    1. 请假剔除：
+      + 获取到 时间范围 内的请假记录，并且剔除
+      + 获取到 时间范围 内的值班记录，根据状态剔除
+    """
+
     dutys = []
 
     differ_day = (end_date - start_date).days
     base_absence = int((differ_day)/7) # 跨域了几周
-    # 如果时间大于一周，则会直接获取全部，然后再单独处理剩下多余的
+
     if differ_day >= 7:
         print("more than 7 days")
         dutys = DutyList.objects.all()
@@ -509,7 +628,7 @@ def GetTotalDutyInRange(request):
                 responseData.append(temp)
 
     # 处理多余的部分
-    _day = []
+    _day = [] # 筛选出 1 2 3 4 5 6 7
     w1 = start_date.weekday()
     w2 = end_date.weekday()
 
@@ -525,7 +644,7 @@ def GetTotalDutyInRange(request):
                 w1 = w1%7
             else: break
 
-    if(len(_day)!=0):
+    if(len(_day)!=0):  # 说明这几天需要筛选
         dutys = DutyList.objects.filter(day__in=_day)
         for i in dutys:
             current_sdut_id = i.sdut_id
@@ -551,12 +670,32 @@ def GetTotalDutyInRange(request):
                 }
                 responseData.append(temp)
 
-        # 上面统计的 absence 是实际上应该值班的次数，经过下面过滤以后才是真正缺勤的人
-        # leave 需要单独再处理
+    # 上面统计的 absence 是实际上应该值班的次数
+    # 经过下面过滤以后才是真正缺勤的人
+    # leave 需要单独再处理  
+    # 至此时间范围内所有需要值班的人以及次数已经统计完毕
+    # 下面对 absence 进行剔除
+    # 剔除策略是：
+    # 1. 请假
+    # 2. 正常值班
+    start_date = start_date.replace(hour=0, minute=0, second=0)
+    end_date = end_date.replace(hour=23, minute=59, second=59)
+    #  使用 __range 查询获取在给定时间范围内的 请假 记录
+    leave_list = DutyLeave.objects.filter(leave_date__range=(start_date,end_date))
+    for i in leave_list:
+        current_sdut_id = i.sdut_id
+        # 找到这个人
+        existing_entry = next((entry for entry in responseData if entry['sdut_id'] == current_sdut_id), None)
+        
+        if existing_entry:
+            if existing_entry['absence'] - 1 >= 0:
+                # 保证合法
+                existing_entry['absence'] -= 1
+
 
     # 使用 __range 查询获取在给定时间范围内的 DutyHistory 记录
-    dutys = DutyHistory.objects.filter(start_time__range=(start_time, end_time))
-    # dutys = DutyHistory.objects.all()
+    dutys = DutyHistory.objects.filter(start_time__range=(start_date, end_date))
+    print(len(dutys))
     for i in dutys:
         current_sdut_id = i.sdut_id
         existing_entry = next((entry for entry in responseData if entry['sdut_id'] == current_sdut_id), None)
@@ -564,6 +703,9 @@ def GetTotalDutyInRange(request):
         if existing_entry:
             # 这个人之前应该值班，判断一下这个值班的时间是不是在应该值班的区间
             existing_entry['total_time'] += i.total_time
+            if existing_entry['absence'] - i.duty_times >= 0:
+                # 保证合法
+                existing_entry['absence'] -= i.duty_times
         else:
             # 说明这个人在时间范围内没有值班任务
             in_youthol = Youtholer.objects.filter(sdut_id=i.sdut_id)[0]
@@ -725,9 +867,10 @@ def addOneYoutholer(request):
         sdut_id = json_param['sdut_id']
         name = json_param['name']
         department = json_param['department']
-        identity = '试用'
+        identity = json_param['identity']
         youtholer = Youtholer.objects.create(sdut_id=sdut_id, name=name, department=department, identity=identity)
         youtholer.save()
+    
 
     duty = json_param['duty']
     for i in range(0,2):
