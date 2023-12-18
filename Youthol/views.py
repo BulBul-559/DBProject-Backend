@@ -38,8 +38,22 @@ def tokenToId(request):
     except Exception as e:
         return HttpResponse(json.dumps({'error': 'Invalid token'}))
 
-    
+def judgeLocation(location):
+    la_0,long_0 = location
 
+    la_1 = 36.81255980
+    long_1 = 117.9943526
+
+    la_2 = 36.81433740
+    long_2 = 117.9930294
+
+    if la_1 <= la_0 <= la_2 and long_2 <= long_0 <= long_1:
+        return True
+    else:
+        return False
+
+# 以下为测试接口
+    
 def SignUp(request):
     """
         Sign up to the system.
@@ -93,7 +107,7 @@ def addDuty(request):
 
     for idx, row in df[columns_to_extract].iterrows():
         username = row['sdut_id']
-        day =random.randint(1, 7)
+        day =random.randint(1, 7)   
         frame=random.randint(1, 5)
         duty = DutyList.objects.create(sdut_id=username, day=day, frame=frame)
     return HttpResponse(status=201)
@@ -112,15 +126,19 @@ def SignIn(request):
         password = json_param['password']
         
         user = authenticate(username=username, password=password)
+        users = Sduter.objects.filter(sdut_id=username)[0]
+
+           # 加一个判断是不是第一次登录，然后修改密码
 
         if user is not None:
             # 生成 Refresh Token
             refresh = RefreshToken.for_user(user)
-            # 过期时间 15 分钟
-            # refresh.access_token.set_exp(lifetime=timedelta(days=15))
+
             refresh['sdut_id'] = user.username
             # 生成 Access Token
             access = refresh.access_token
+            if users.first_login:
+                return HttpResponse(json.dumps({'SignState':'初次登录','access_token': str(access), 'refresh_token': str(refresh)}))
 
             # 返回 Token 值
             return HttpResponse(json.dumps({'SignState':'登录成功','access_token': str(access), 'refresh_token': str(refresh)}))
@@ -128,7 +146,37 @@ def SignIn(request):
             return HttpResponse(json.dumps({'SignState':'账号或密码错误'}))
     else:
         return HttpResponse('no params')
+    
+@api_view(['GET','POST'])
+@permission_classes([AllowAny])
+def ChangePassword(request):
+    json_param = json.loads(request.body.decode())
 
+    username = tokenToId(request)
+    password = json_param['password']
+    
+    user = authenticate(username=username, password=password)
+    users = Sduter.objects.filter(sdut_id=username)[0]
+
+    if user is not None:
+        new_pwd = json_param['new_pwd']
+        again_pwd = json_param['again_pwd']
+        if(new_pwd != again_pwd):
+            return HttpResponse(json.dumps({'message':'两次密码不一致'}))
+        user = User.objects.get(username=username)
+        user.set_password(new_pwd)
+        print(new_pwd)
+        user.save()
+
+        if 'first_login' in json_param:
+            users.first_login = False
+            users.save()
+
+        return HttpResponse(json.dumps({'message':'修改成功'}))
+    else:
+        return HttpResponse(json.dumps({'message':'原密码错误'}))
+
+    
 
 @api_view(['GET','POST'])
 @permission_classes([IsAuthenticated])
@@ -152,8 +200,6 @@ def GetUserInfo(request):
         return HttpResponse(json.dumps({'sdut_id': sdut_id}))
     except Exception as e:
         return HttpResponse(json.dumps({'error': 'Invalid token'}))
-    
-
 
 @api_view(['GET','POST'])
 @permission_classes([IsAuthenticated])
@@ -182,7 +228,31 @@ def getYoutholerInfo(request):
         return HttpResponse(json.dumps(res))
     except Exception as e:
         return HttpResponse(json.dumps({'error': 'Invalid token'}))
-    
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def CheckDuty(request):
+    """
+        配合前端生命周期函数，检查是否正在值班
+    """
+
+    sdut_id = tokenToId(request)
+
+    if DutyNow.objects.filter(sdut_id=sdut_id).exists():
+        duty = DutyNow.objects.filter(sdut_id=sdut_id)
+        responseData = {
+            'start_time': formatTime(duty[0].start_time),
+            'duty_state': duty[0].duty_state
+        }
+        return HttpResponse(json.dumps(responseData))
+    else :
+        return HttpResponse(json.dumps({'duty_state': '未值班'}))
+
+"""
+以上为获取基本信息
+以下为签到签退
+"""
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def StartDuty(request):
@@ -190,11 +260,16 @@ def StartDuty(request):
         Start to duty
     """
     json_param = json.loads(request.body.decode())
-    sdut_id = json_param['sdut_id']
+    sdut_id = tokenToId(request)
     start_time =timezone.now()
     duty_state = '正常值班'
+    latitude = json_param['latitude']
+    longitude = json_param['longitude']
+    # 先判断是否在位置内 
+    if judgeLocation({latitude,longitude}) == False:
+        return HttpResponse('不在签到范围位置内')
 
-    # 这里应该请求数据库，然后判断是不是在值班时间内、是否迟到登的
+    # 这里应该请求数据库，然后判断是不是在值班时间内、是否迟到
     if(DutyNow.objects.filter(sdut_id=sdut_id).exists() == True):
        return HttpResponse('签到失败')
     
@@ -207,7 +282,6 @@ def StartDuty(request):
     return HttpResponse(json.dumps(responseData))
     # 这里应该请求数据库，然后判断是不是在值班时间内、是否迟到登的
 
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def FinishDuty(request):
@@ -215,7 +289,13 @@ def FinishDuty(request):
         Finish the Duty
     """
     json_param = json.loads(request.body.decode())
-    sdut_id = json_param['sdut_id']
+    sdut_id = tokenToId(request)
+    latitude = json_param['latitude']
+    longitude = json_param['longitude']
+    # 先判断是否在位置内 
+    if judgeLocation({latitude,longitude}) == False:
+        return HttpResponse(json.dumps({'message':'不在签退范围位置内'}))
+
 
     message = '签退成功'
 
@@ -245,6 +325,39 @@ def FinishDuty(request):
 
 
     # 这里应该请求数据库，然后判断是不是在值班时间内、是否迟到etc.
+
+"""
+以上为签到签退
+以下为获取数据
+"""
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def GetAllYoutholer(request):
+    """
+        获取所有青春在线成员的信息
+    """
+    responseData = []
+    youtholers = Youtholer.objects.all()
+    for i in youtholers:
+        duty = DutyList.objects.filter(sdut_id=i.sdut_id)
+
+        duty_list = []
+
+        for j in duty:
+            day = j.day
+            frame = j.frame
+            duty_list.append({'day': day, 'frame': frame})
+
+        temp = {
+            'sdut_id': i.sdut_id,
+            'name': i.name,
+            'department' :i.department,
+            'identity':i.identity,
+            'duty':duty_list
+        }
+        responseData.append(temp)
+    
+    return HttpResponse(json.dumps(responseData))
 
 
 @api_view(['POST'])
@@ -295,70 +408,31 @@ def getTodayDuty(request):
         }
         responseData.append(temp)
 
-    # for i in res:
-    #     comments = Comments.objects.filter(quesId=i.id).count()
-    #     temp = {
-    #         'id': i.id,
-    #         'ques': i.ques,
-    #         'commentsNum': comments
-    #     }
-    #     responseData.append(temp)
-
     return HttpResponse(json.dumps(responseData));
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def CheckDuty(request):
-    """
-        配合前端生命周期函数，检查是否正在值班
-    """
-
+def getSingleDutyTime(request):
     sdut_id = tokenToId(request)
+    duty = DutyList.objects.filter(sdut_id=sdut_id)
 
-    if DutyNow.objects.filter(sdut_id=sdut_id).exists():
-        duty = DutyNow.objects.filter(sdut_id=sdut_id)
-        responseData = {
-            'start_time': formatTime(duty[0].start_time),
-            'duty_state': duty[0].duty_state
-        }
-        return HttpResponse(json.dumps(responseData))
-    else :
-        return HttpResponse(json.dumps({'duty_state': '未值班'}))
+    data = []
 
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def GetAllYoutholer(request):
-    """
-        获取所有青春在线成员的信息
-    """
-    responseData = []
-    youtholers = Youtholer.objects.all()
-    for i in youtholers:
-        duty = DutyList.objects.filter(sdut_id=i.sdut_id)
-
-        duty_list = []
-
-        for j in duty:
-            day = j.day
-            frame = j.frame
-            duty_list.append({'day': day, 'frame': frame})
-
+    for i in duty:
         temp = {
-            'sdut_id': i.sdut_id,
-            'name': i.name,
-            'department' :i.department,
-            'identity':i.identity,
-            'duty':duty_list
+            'day': i.day,
+            'frame':i.frame
         }
-        responseData.append(temp)
-    
-    return HttpResponse(json.dumps(responseData))
+        data.append(temp)
 
+    while(len(data)<2):
+        data.append({'day':0,'frame':0})
 
+    return HttpResponse(json.dumps(data))
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
-def GetAllDuty(request):
+def GetAllDutyRecord(request):
     """
         获取时间内全部值班记录
         一个人多条记录不会合并
@@ -379,7 +453,6 @@ def GetAllDuty(request):
         responseData.append(temp)
     
     return HttpResponse(json.dumps(responseData))
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -529,14 +602,50 @@ def GetSingleTotalDuty(request):
                 'sdut_id': i.sdut_id,
                 'name': Youtholer.objects.filter(sdut_id=i.sdut_id)[0].name,
                 'department': Youtholer.objects.filter(sdut_id=i.sdut_id)[0].department,
-                'start_time':formatTime(i.start_time),
-                'end_time':formatTime(i.end_time),
                 'total_time':i.total_time,
-                'duty_state':i.duty_state,
             }
             responseData.append(temp)
     
     return HttpResponse(json.dumps(responseData))
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def getSingleDutyRecord(request):
+    sdut_id = tokenToId(request)
+
+    duty = DutyHistory.objects.filter(sdut_id=sdut_id)
+
+    data = []
+    for i in duty:
+        temp = {
+            'start_time':formatTime(i.start_time),
+            'end_time':formatTime(i.end_time),
+            'total_time':i.total_time,
+            'duty_state':i.duty_state,
+        }
+        data.append(temp)
+
+    return HttpResponse(json.dumps(data))
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def getSingleLeaveRecord(request):
+    sdut_id = tokenToId(request)
+
+    leave = DutyLeave.objects.filter(sdut_id=sdut_id)
+
+    data = []
+    for i in leave:
+        temp = {
+            'apply_time':formatTime(i.apply_time),
+            'leave_date':formatTime(i.leave_date),
+            'day':i.day,
+            'frame':i.frame,
+        }
+        data.append(temp)
+
+    return HttpResponse(json.dumps(data))
 
 
 @api_view(['POST'])
@@ -544,8 +653,7 @@ def GetSingleTotalDuty(request):
 def modifySingleYoutholInfo(request):
     json_param = json.loads(request.body.decode())
     sdut_id = json_param['sdut_id']
-
-
+    
     duty = json_param['duty']
     
     youthol = Youtholer.objects.filter(sdut_id=sdut_id)[0]
@@ -561,7 +669,6 @@ def modifySingleYoutholInfo(request):
             DutyList.objects.create(sdut_id=sdut_id,day=duty[i]['day'],frame=duty[i]['frame'],)
 
     return HttpResponse('修改成功')
-
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
@@ -630,28 +737,6 @@ def addOneYoutholer(request):
     return HttpResponse('添加成功')
 
 
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def getSingleDutyTime(request):
-    sdut_id = tokenToId(request)
-    duty = DutyList.objects.filter(sdut_id=sdut_id)
-
-    data = []
-
-    for i in duty:
-        temp = {
-            'day': i.day,
-            'frame':i.frame
-        }
-        data.append(temp)
-
-    while(len(data)<2):
-        data.append({'day':0,'frame':0})
-
-    return HttpResponse(json.dumps(data))
-
-
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def applyDutyLeave(request):
@@ -675,22 +760,3 @@ def applyDutyLeave(request):
         DutyLeave.objects.create(sdut_id=sdut_id, apply_time=timezone.now(), leave_date=date_object,day=day,frame=frame)
 
     return HttpResponse("请假成功")
-
-@api_view(['POST'])
-@permission_classes([IsAuthenticated])
-def getSingleLeaveRecord(request):
-    sdut_id = tokenToId(request)
-
-    leave = DutyLeave.objects.filter(sdut_id=sdut_id)
-
-    data = []
-    for i in leave:
-        temp = {
-            'apply_time':formatTime(i.apply_time),
-            'leave_date':formatTime(i.leave_date),
-            'day':i.day,
-            'frame':i.frame,
-        }
-        data.append(temp)
-
-    return HttpResponse(json.dumps(data))

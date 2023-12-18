@@ -3,23 +3,34 @@ from django.urls import path
 from . import views
 
 urlpatterns = [
-    path("SignIn/", views.SignIn),
     path("SignUp/", views.SignUp),
-    path("getUserInfo/", views.GetUserInfo),
-    path("getYoutholerInfo/", views.getYoutholerInfo),
     path("addDuty/", views.addDuty),
+
+    path("SignIn/", views.SignIn),
+    path("ChangePassword/", views.ChangePassword),
+    path("GetUserInfo/", views.GetUserInfo), 
+    path("GetYoutholerInfo/", views.getYoutholerInfo),
+    path("CheckDuty/", views.CheckDuty),
+
+    # 值班
     path("StartDuty/", views.StartDuty),
     path("FinishDuty/", views.FinishDuty),
-    path("getTodayDuty/", views.getTodayDuty),
-    path("CheckDuty/", views.CheckDuty),
-    path("GetAllDuty/", views.GetAllDuty),
-    path("GetTotalDutyInRange/", views.GetTotalDutyInRange),
+
+    # 获取数据
     path("GetAllYoutholer/", views.GetAllYoutholer),
+    
+    path("GetTodayDuty/", views.getTodayDuty),
+    path("GetSingleDutyTime/", views.getSingleDutyTime),
+    path("GetAllDutyRecord/", views.GetAllDutyRecord),
     path("GetSingleTotalDuty/", views.GetSingleTotalDuty),
-    path("modifySingleYoutholInfo/", views.modifySingleYoutholInfo),
-    path("deletYoutholer/", views.deletYoutholer),
-    path("addOneYoutholer/", views.addOneYoutholer),
-    path("getSingleDutyTime/", views.getSingleDutyTime),
-    path("applyDutyLeave/", views.applyDutyLeave),
-    path("getSingleLeaveRecord/", views.getSingleLeaveRecord),
+    path("GetTotalDutyInRange/", views.GetTotalDutyInRange),
+
+    path("GetSingleDutyRecord/", views.getSingleDutyRecord),
+    path("GetSingleLeaveRecord/", views.getSingleLeaveRecord),
+
+    # 修改数据
+    path("ModifySingleYoutholInfo/", views.modifySingleYoutholInfo),
+    path("DeletYoutholer/", views.deletYoutholer),
+    path("AddOneYoutholer/", views.addOneYoutholer),
+    path("ApplyDutyLeave/", views.applyDutyLeave),
 ]

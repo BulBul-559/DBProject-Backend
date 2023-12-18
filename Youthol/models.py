@@ -10,8 +10,8 @@ class Sduter(models.Model):
     grade = models.CharField(max_length=20,null=True)
     identity = models.CharField(max_length=20,null=True)
     phone = models.CharField(max_length=20,null=True)
+    first_login = models.BooleanField(default=True)
  
-
 class Youtholer(models.Model):
     sdut_id = models.CharField(max_length=20, db_index=True)
     name = models.CharField(max_length=20,null=True)
