@@ -114,25 +114,32 @@ def SignUp(request):
     file_path = 'Youthol/sduter.xlsx'  # 请将路径替换为您的实际文件路径
     df = pd.read_excel(file_path)
     # 注册 User
-    columns_to_extract = ['sdut_id','name','department', 'grade', 'phone']
+    columns_to_extract = ["sdut_id","name","grade","college","department","phone","qq_number","birthday"]
 
     for idx, row in df[columns_to_extract].iterrows():
         username = row['sdut_id']
         password = 'youthol'
-        email = f"{row['sdut_id']}@stumail.sdut.edu.cn"
+        email = f"{row['qq_number']}@qq.com"
         if User.objects.filter(username = username).exists():
             continue
         user = User.objects.create_user(username, email, password)
         user.save()
+
     # 注册 Sduter
     for idx, row in df[columns_to_extract].iterrows():
         sdut_id = row['sdut_id']
         name = row['name']
-        college = '山东理工大学'
+        college = row['college']
         grade = row['grade']
         identity = '学生'
-        sduter = Sduter.objects.create(sdut_id=sdut_id, name=name, college=college, grade=grade,identity = identity)
+        phone = row['phone']
+        qq_number = row['qq_number']
+        birthday = row['birthday']
+        sduter = Sduter.objects.create(sdut_id=sdut_id, name=name, college=college, 
+                                       grade=grade,identity = identity, phone=phone,
+                                       qq_number=qq_number, birthday = birthday)
         sduter.save()
+
     # 注册 Youther
     for idx, row in df[columns_to_extract].iterrows():
         sdut_id = row['sdut_id']
@@ -150,18 +157,45 @@ def SignUp(request):
     # user.save()
     return HttpResponse(status=201)
 
+def Create(request):
+    """
+        Sign up to the system.
+        Here just a simple example.
+    """
+    username = 'sunorain'
+    password = 'youthol'
+    email = "1079729701@qq.com"
+    User.objects.create_user(username, email, password)
+
+    sdut_id = 'sunorain'
+    name = '小悠'
+    college = '山东理工大学'
+    grade = '214'
+    identity = '学生'
+    sduter = Sduter.objects.create(sdut_id=sdut_id, name=name, college=college, 
+                                    grade=grade,identity = identity)
+    department = '管理组'
+    identity = '管理员'
+    youtholer = Youtholer.objects.create(sdut_id=sdut_id, name=name, department=department, identity=identity)
+    youtholer.save()
+
+    return HttpResponse('success')
 
 def addDuty(request):
-    file_path = 'Youthol/sduter.xlsx'  # 请将路径替换为您的实际文件路径
+    file_path = 'Youthol/duty.xlsx'  # 请将路径替换为您的实际文件路径
     df = pd.read_excel(file_path)
     # 注册 User
-    columns_to_extract = ['sdut_id','name','department', 'grade', 'phone']
+    columns_to_extract = ['sdut_id','name','day', 'frame']
 
     for idx, row in df[columns_to_extract].iterrows():
-        username = row['sdut_id']
-        day =random.randint(1, 7)   
-        frame=random.randint(1, 5)
-        duty = DutyList.objects.create(sdut_id=username, day=day, frame=frame)
+        sdut_id = row['sdut_id']
+        day =row['day'] 
+        frame=row['frame']
+        if DutyList.objects.filter(sdut_id = sdut_id,day=day,frame = frame).exists():
+            # 已经存在
+            continue
+
+        duty = DutyList.objects.create(sdut_id=sdut_id, day=day, frame=frame)
     return HttpResponse(status=201)
 
 # 以上为测试接口
@@ -178,10 +212,12 @@ def SignIn(request):
         password = json_param['password']
         
         user = authenticate(username=username, password=password)
-        users = Sduter.objects.filter(sdut_id=username)[0]
+        users = Sduter.objects.filter(sdut_id=username)
+
+        if users.exists():
+            users = users[0]
 
            # 加一个判断是不是第一次登录，然后修改密码
-
         if user is not None:
             # 生成 Refresh Token
             refresh = RefreshToken.for_user(user)
