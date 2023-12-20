@@ -26,6 +26,53 @@ import pandas as pd
 import random
 import json
 
+
+################
+
+# from apscheduler.schedulers.background import BackgroundScheduler # 使用它可以使你的定时任务在后台运行
+# from django_apscheduler.jobstores import DjangoJobStore, register_events, register_job
+# import time
+# '''
+# date：在您希望在某个特定时间仅运行一次作业时使用
+# interval：当您要以固定的时间间隔运行作业时使用
+# cron：以crontab的方式运行定时任务
+# minutes：设置以分钟为单位的定时器
+# seconds：设置以秒为单位的定时器
+# '''
+
+# try:
+#     scheduler = BackgroundScheduler()
+#     scheduler.add_jobstore(DjangoJobStore(), "default")
+
+#     @register_job(scheduler, "interval",seconds=5,id='test14')
+#     def ClearNotFinishDutyJob():
+#         # 定时每5秒执行一次
+#         ClearNotFinishDuty()
+#         print(time.strftime('%Y-%m-%d %H:%M:%S'))
+
+#     register_events(scheduler)
+#     # 启动定时器
+#     scheduler.start()
+# except Exception as e:
+#     print('定时任务异常：%s' % str(e))
+
+
+# def ClearNotFinishDuty():
+#     now_duty = DutyNow.objects.all()
+#     if now_duty.exists():
+
+#         for duty in now_duty:
+#             print(duty.sdut_id)
+
+#             DutyHistory.objects.create(sdut_id = duty.sdut_id, start_time = duty.start_time,
+#                                     end_time = timezone.now(), total_time = 0, extra_time = 0,
+#                                     duty_state = '未签退' ,duty_times = 0)
+#             duty.delete()
+#             break
+#     return
+
+####################
+
 def formatTime(dt):
         return dt.strftime("%Y/%m/%d %H:%M")
 
@@ -702,6 +749,7 @@ def GetTotalDutyInRange(request):
 
         if existing_entry:
             # 这个人之前应该值班，判断一下这个值班的时间是不是在应该值班的区间
+            
             existing_entry['total_time'] += i.total_time
             if existing_entry['absence'] - i.duty_times >= 0:
                 # 保证合法

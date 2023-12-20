@@ -45,6 +45,7 @@ INSTALLED_APPS = [
     'corsheaders',  # 注册app corsheaders
     'rest_framework',
     'rest_framework_simplejwt',
+    'django_apscheduler',
 ]
 
 MIDDLEWARE = [
@@ -73,6 +74,10 @@ AUTHENTICATION_BACKENDS = [
     'django.contrib.auth.backends.ModelBackend',
     # 其他身份验证后端（如果有）
 ]
+
+# 使用默认的数据库存储调度器任务
+SCHEDULER_DB_ALIAS = 'default'
+
 
 CORS_ALLOW_CREDENTIALS = True
 # CORS_ALLOW_ALL_ORIGINS = True
