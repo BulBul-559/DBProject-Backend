@@ -5,7 +5,7 @@ from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist
 from django.utils import timezone
 from django.contrib.auth import authenticate
-
+from django.db.models import Count
 
 from Youthol.models import Sduter
 from Youthol.models import Youtholer
@@ -26,52 +26,6 @@ import pandas as pd
 import random
 import json
 
-
-################
-
-# from apscheduler.schedulers.background import BackgroundScheduler # 使用它可以使你的定时任务在后台运行
-# from django_apscheduler.jobstores import DjangoJobStore, register_events, register_job
-# import time
-# '''
-# date：在您希望在某个特定时间仅运行一次作业时使用
-# interval：当您要以固定的时间间隔运行作业时使用
-# cron：以crontab的方式运行定时任务
-# minutes：设置以分钟为单位的定时器
-# seconds：设置以秒为单位的定时器
-# '''
-
-# try:
-#     scheduler = BackgroundScheduler()
-#     scheduler.add_jobstore(DjangoJobStore(), "default")
-
-#     @register_job(scheduler, "interval",seconds=5,id='test14')
-#     def ClearNotFinishDutyJob():
-#         # 定时每5秒执行一次
-#         ClearNotFinishDuty()
-#         print(time.strftime('%Y-%m-%d %H:%M:%S'))
-
-#     register_events(scheduler)
-#     # 启动定时器
-#     scheduler.start()
-# except Exception as e:
-#     print('定时任务异常：%s' % str(e))
-
-
-# def ClearNotFinishDuty():
-#     now_duty = DutyNow.objects.all()
-#     if now_duty.exists():
-
-#         for duty in now_duty:
-#             print(duty.sdut_id)
-
-#             DutyHistory.objects.create(sdut_id = duty.sdut_id, start_time = duty.start_time,
-#                                     end_time = timezone.now(), total_time = 0, extra_time = 0,
-#                                     duty_state = '未签退' ,duty_times = 0)
-#             duty.delete()
-#             break
-#     return
-
-####################
 
 def formatTime(dt):
         return dt.strftime("%Y/%m/%d %H:%M")
@@ -103,7 +57,19 @@ def dutyFrameToTime(frame):
     _time = {1:"08:00", 2:"10:00", 3:"14:00", 4:"16:00", 5:"19:00" }
     return _time[frame]
 
-       
+def ClearYesterdayDuty():
+    now_duty = DutyNow.objects.all()
+
+    if now_duty.exists():
+        for duty in now_duty:
+            print(duty.sdut_id)
+
+            DutyHistory.objects.create(sdut_id = duty.sdut_id, start_time = duty.start_time,
+                                    end_time = timezone.now(), total_time = 0, extra_time = 0,
+                                    duty_state = '未签退' ,duty_times = 0)
+            duty.delete()
+    return HttpResponse('清理完毕')
+
 # 以下为测试接口
     
 def SignUp(request):
@@ -198,6 +164,19 @@ def addDuty(request):
         duty = DutyList.objects.create(sdut_id=sdut_id, day=day, frame=frame)
     return HttpResponse(status=201)
 
+def ClearNotFinishDuty(request):
+    now_duty = DutyNow.objects.all()
+    if now_duty.exists():
+
+        for duty in now_duty:
+            print(duty.sdut_id)
+
+            DutyHistory.objects.create(sdut_id = duty.sdut_id, start_time = duty.start_time,
+                                    end_time = timezone.now(), total_time = 0, extra_time = 0,
+                                    duty_state = '未签退' ,duty_times = 0)
+            duty.delete()
+    return HttpResponse('清理完毕')
+
 # 以上为测试接口
 
 @api_view(['POST'])
@@ -217,7 +196,6 @@ def SignIn(request):
         if users.exists():
             users = users[0]
 
-           # 加一个判断是不是第一次登录，然后修改密码
         if user is not None:
             # 生成 Refresh Token
             refresh = RefreshToken.for_user(user)
@@ -390,8 +368,6 @@ def FinishDuty(request):
         start_time = duty_now.start_time
         end_time = timezone.now()
 
-
-
         # 开始判断判断状态
         total_time = (end_time - start_time).total_seconds()
 
@@ -514,6 +490,7 @@ def FinishDuty(request):
 
     # 这里应该请求数据库，然后判断是不是在值班时间内、是否迟到etc.
 
+
 """
 以上为签到签退
 以下为获取数据
@@ -548,19 +525,26 @@ def GetAllYoutholer(request):
     return HttpResponse(json.dumps(responseData))
 
 
+
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def getTodayDuty(request):
     """
         Get dutied people
     """
-    # 正在值班+今天应该值班+今天已经结束值班
+    # 正在值班+今天已经结束值班
     # 这里只显示记录，所以如果一天多次反复值班，直接全部显示就行了
     # 姓名 部门 开始时间 结束时间 状态    
     responseData = []
+    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
 
     # 正在值班
-    duty_now_list = DutyNow.objects.all()
+    duty_now_list = DutyNow.objects.filter(start_time__range=(today_start, today_end))
+    total_duty_now = DutyNow.objects.all()
+    if(duty_now_list.count() < total_duty_now.count()):
+        # 所有的没结束值班的大于今天在值班的，说明昨天有人没值班，清理掉。
+        ClearYesterdayDuty();
     
     # 姓名 部门 开始时间 结束时间 状态    
     for item in duty_now_list:
@@ -575,11 +559,8 @@ def getTodayDuty(request):
         }
         responseData.append(temp)
 
-    # 今天应该值班
 
     # 今天已经结束值班
-    today_start = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_end = timezone.now().replace(hour=23, minute=59, second=59, microsecond=999999)
 
     today_duty_history = DutyHistory.objects.filter(start_time__range=(today_start, today_end))
     
@@ -891,7 +872,9 @@ def modifySingleYoutholInfo(request):
     duty_list = DutyList.objects.filter(sdut_id = sdut_id)
     duty_list.delete()
     for i in range(0,2):
-        if(duty[i]['day']!= 0 and duty[i]['frame']):
+        print(type(duty[i]['day']))
+        print(duty[i]['day'])
+        if(duty[i]['day']!= '0' and duty[i]['frame']!= '0'):
             DutyList.objects.create(sdut_id=sdut_id,day=duty[i]['day'],frame=duty[i]['frame'],)
 
     return HttpResponse('修改成功')
@@ -987,3 +970,10 @@ def applyDutyLeave(request):
         DutyLeave.objects.create(sdut_id=sdut_id, apply_time=timezone.now(), leave_date=date_object,day=day,frame=frame)
 
     return HttpResponse("请假成功")
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def GetRoomBorrow(request):
+    
+    return HttpResponse()

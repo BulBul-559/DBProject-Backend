@@ -45,3 +45,13 @@ class DutyLeave(models.Model):
     leave_date = models.DateTimeField(db_index=True)
     day = models.IntegerField()
     frame = models.IntegerField()
+
+class RoomBorrow(models.Model):
+    room_id = models.CharField(max_length=20, db_index=True)
+    sdut_id = models.CharField(max_length=20, db_index=True)
+    apply_time = models.DateTimeField(db_index=True)
+    start_time = models.DateTimeField(db_index=True)
+    end_time = models.DateTimeField(db_index=True)
+    cancel = models.BooleanField(default=False)
+    cancel_time = models.DateTimeField(null=True)
+    

@@ -6,6 +6,7 @@ urlpatterns = [
     # path("SignUp/", views.SignUp),
     # path("addDuty/", views.addDuty),
     # path("Create/", views.Create),
+    # path("ClearNotFinishDuty/", views.ClearNotFinishDuty),
 
     path("SignIn/", views.SignIn),
     path("ChangePassword/", views.ChangePassword),
@@ -28,6 +29,8 @@ urlpatterns = [
 
     path("GetSingleDutyRecord/", views.getSingleDutyRecord),
     path("GetSingleLeaveRecord/", views.getSingleLeaveRecord),
+
+    path("GetRoomBorrow/", views.GetRoomBorrow),
 
     # 修改数据
     path("ModifySingleYoutholInfo/", views.modifySingleYoutholInfo),
