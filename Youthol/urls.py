@@ -31,6 +31,8 @@ urlpatterns = [
     path("GetSingleLeaveRecord/", views.getSingleLeaveRecord),
 
     path("GetRoomBorrow/", views.GetRoomBorrow),
+    path("GetRoomFreeTime/", views.GetRoomFreeTime),
+    path("ApplyRoomBorrow/", views.ApplyRoomBorrow),
 
     # 修改数据
     path("ModifySingleYoutholInfo/", views.modifySingleYoutholInfo),

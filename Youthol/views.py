@@ -13,6 +13,7 @@ from Youthol.models import DutyList
 from Youthol.models import DutyNow
 from Youthol.models import DutyHistory
 from Youthol.models import DutyLeave
+from Youthol.models import RoomBorrow
 
 # generate token and verify the token
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
@@ -25,6 +26,7 @@ from datetime import datetime, timedelta
 import pandas as pd
 import random
 import json
+from intervaltree import IntervalTree
 
 
 def formatTime(dt):
@@ -287,7 +289,8 @@ def getYoutholerInfo(request):
         res = {'sdut_id': sdut_id,
                'name':youthol[0].name,
                'department':youthol[0].department,
-               'identity':youthol[0].identity
+               'identity':youthol[0].identity,
+               'position':youthol[0].position,
                }
         # 在这里查询其他的信息并返回
 
@@ -971,9 +974,73 @@ def applyDutyLeave(request):
 
     return HttpResponse("请假成功")
 
+def toBorrowIdx(time):
+    """
+    给定一个形如 %H:%M 的字符串, 将其转化为借用房间时间的索引表示，
+    转化规则为，以 08:00 为 0 , 08:30 为 1 , 每半小时增加 1 以此类推
+    """
+    time_idx = (int(time.split(':')[0])-8)*2 + int(int(time.split(':')[1])/30)
+    return time_idx
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def ApplyRoomBorrow(request):
+    json_param = json.loads(request.body.decode())
+    sdut_id = tokenToId(request)
+    apply_time = timezone.now()
+    borrow_date = (apply_time + timedelta(days=(13-json_param['date']))).replace(hour=0,minute=0,second=0,microsecond=0)
+    people = json_param['people']
+    _start_time = json_param['start_time']
+    _end_time = json_param['end_time']
+
+    start_time = borrow_date.replace(hour=int(_start_time.split(':')[0]), minute=int(_start_time.split(':')[1]), second=0, microsecond=0)
+    end_time  = borrow_date.replace(hour=int(_end_time .split(':')[0]), minute=int(_end_time .split(':')[1]), second=0, microsecond=0)
+   
+    room_id = json_param['room_id']
+   
+    # print(borrow_date)
+    # print(start_time)
+
+    busy_time = IntervalTree()
+    busy_list = RoomBorrow.objects.filter(room_id=room_id,start_time__range=(borrow_date,borrow_date+timedelta(days=1)))
+    for item in busy_list:
+        start_idx = toBorrowIdx(item.start_time.strftime("%H:%M"))
+        end_idx = toBorrowIdx(item.end_time.strftime("%H:%M"))
+        busy_time[start_idx:end_idx] = item.id
+    res = busy_time[toBorrowIdx(_start_time):toBorrowIdx(_end_time)]
+    if len(res) == 0: 
+        RoomBorrow.objects.create(room_id=room_id,sdut_id=sdut_id,apply_people=people, apply_time=apply_time, start_time=start_time,end_time=end_time)
+        return HttpResponse("success")
+    else:
+        return HttpResponse("busy")
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def GetRoomFreeTime(request):
+    return HttpResponse()
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def GetRoomBorrow(request):
+    json_param = json.loads(request.body.decode())
+    now_time = timezone.now().replace(hour=0, minute=0, second=0, microsecond=0)
+    end_time = now_time + timedelta(days=14)
+
+    resData = {}
+    resData['recent14Day'] = {'dimensions':['日期'],'data':[]}
+    resData['borrowTime'] = {'dimensions':['借用日期', '开始时间', '结束时间', '借用人', '开始时间', '结束时间'],'data':[]}
+    for i in range(14):
+        _time = now_time + timedelta(days=(13-i))
+        borrow_list = RoomBorrow.objects.filter(start_time__range=(_time,(_time + timedelta(days=1))))
+        str_date = _time.strftime("%m月%d日") 
+        resData['recent14Day']['data'].append([str_date])
+        for item in borrow_list:
+            start_str1 = item.start_time.strftime("2023/07/08 %H:%M") 
+            end_str1 = item.end_time.strftime("2023/07/08 %H:%M") 
+            start_str2 = item.start_time.strftime("%H:%M") 
+            end_str2 = item.end_time.strftime("%H:%M") 
+            timeData = [i, start_str1, end_str1, item.apply_people,start_str2, end_str2]
+            resData['borrowTime']['data'].append(timeData)
+     
+    return HttpResponse(json.dumps(resData))
     
-    return HttpResponse()

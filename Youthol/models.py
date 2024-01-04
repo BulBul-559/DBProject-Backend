@@ -19,6 +19,7 @@ class Youtholer(models.Model):
     name = models.CharField(max_length=20,null=True)
     department = models.CharField(max_length=20,null=True)
     identity = models.CharField(max_length=20,null=True)
+    position = models.CharField(max_length=20,default='成员')
 
 class DutyList(models.Model):
     sdut_id = models.CharField(max_length=20, db_index=True)
@@ -52,6 +53,6 @@ class RoomBorrow(models.Model):
     apply_time = models.DateTimeField(db_index=True)
     start_time = models.DateTimeField(db_index=True)
     end_time = models.DateTimeField(db_index=True)
+    apply_people = models.CharField(default=' ', max_length=20, db_index=True)
     cancel = models.BooleanField(default=False)
     cancel_time = models.DateTimeField(null=True)
-    
